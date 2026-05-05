@@ -14,10 +14,11 @@ The analyses are organized into three scripts:
 
 | File | Contents |
 |------|----------|
-| `01_main_analysis.R` | Core analytical pipeline: AS calculation, cell grouping, DGE, pathway enrichment, ssGSEA meta-analysis, karyotypic heterogeneity, CN subclone identification |
-| `02_recurrent_aneuploidies.R` | Transcriptional consequences of specific recurrent chromosome-arm gains and losses |
-| `03_figures.R` | Code to reproduce all main and supplementary figures |
-
+| `01_main_analysis.R` | Core analysis pipeline, including AS calculation, cell-state grouping, differential gene expression, pathway enrichment, ssGSEA meta-analysis, karyotypic heterogeneity analysis, and CN subclone identification |
+| `02_recurrent_aneuploidies.R` | Analysis of the transcriptional consequences associated with recurrent chromosome-arm gains and losses |
+| `03_figures.R` | Code to reproduce figures from the main analysis and recurrent aneuploidy analyses |
+| `04_immune_analysis.R` | Analysis of the relationship between aneuploidy and tumor cell composition, with code to reproduce the corresponding figures|
+| `03_figures.R` | Analysis of tumor-associated macrophages, with code to reproduce the corresponding figures |
 ---
 
 ## Data Availability
