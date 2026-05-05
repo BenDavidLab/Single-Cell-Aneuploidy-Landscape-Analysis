@@ -14,8 +14,8 @@ The analyses are organized into three scripts:
 
 | File | Contents |
 |------|----------|
-| `01_main_analysis.R` | Core analysis pipeline, including AS calculation, cell-state grouping, differential gene expression, pathway enrichment, ssGSEA meta-analysis, karyotypic heterogeneity analysis, and CN subclone identification |
-| `02_recurrent_aneuploidies.R` | Analysis of the transcriptional consequences associated with recurrent chromosome-arm gains and losses |
+| `01_main_analysis.R` | Core analysis pipeline, including AS calculation, cell-state grouping, differential gene expression, pathway enrichment, ssGSEA meta-analysis, karyotypic heterogeneity analysis, CN subclone identification, cell cycle scoring, QC aggregation, cell-phase analysis |
+| `02_recurrent_aneuploidies.R` | Analysis of the transcriptional consequences associated with recurrent chromosome-arm gains and losses: ssGSEA, meta-analysis, IPTW-controlled DGE, SC vs TCGA correlation |
 | `03_figures.R` | Code to reproduce figures from the main analysis and recurrent aneuploidy analyses |
 | `04_immune_analysis.R` | Analysis of the relationship between aneuploidy and tumor cell composition, with code to reproduce the corresponding figures|
 | `05_TAM_analysis.R` | Analysis of tumor-associated macrophages, with code to reproduce the corresponding figures |
@@ -30,39 +30,3 @@ TCGA aneuploidy scores and arm-level CNA calls are from [Taylor et al. 2018, *Ca
 The **sample file map** (`sampleFilesMap`) referenced throughout is a CSV with one row per sample, containing paths to the relevant expression and CNA files. Its columns are described in the code comments.
 
 ---
-
-## Dependencies
-
-```r
-# CRAN
-install.packages(c("tidyverse", "dplyr", "tidyr", "reshape2", "patchwork",
-                   "cowplot", "ggrepel", "ggpubr", "effectsize", "metafor",
-                   "weights", "sandwich", "lmtest", "pheatmap", "FNN",
-                   "dendextend", "cluster", "stringr"))
-
-# Bioconductor
-BiocManager::install(c("clusterProfiler", "msigdbr", "GSVA",
-                       "Seurat", "enrichplot"))
-
-# Other
-install.packages(c("doParallel", "foreach", "data.table",
-                   "Matrix", "igraph", "icesTAF", "corto"))
-```
-
----
-
-## sampleFilesMap Structure
-
-The `sampleFilesMap` CSV must contain the following columns:
-
-| Column | Description |
-|--------|-------------|
-| `Sample` | Sample identifier |
-| `Study` | Study/paper identifier |
-| `Cancer_type` | Cancer type label |
-| `Expression_file_type` | 0 = UMI (10X), 1 = TPM (Smart-seq2), 2 = excluded |
-| `Cells_path` | Path to cells CSV (columns: `cell_name`, `sample`, `cell_type`) |
-| `Cna_mat` | Path to chromosome-arm CNA matrix (TSV; rows = cells, columns = chr arms) |
-| `Norm_Expression_path` | Path to normalized (centered) expression matrix |
-| `Norm_Without_Center_Expression_path` | Path to normalized (non-centered) expression matrix |
-| `Gene_cna_mat` | Path to gene-level CNA matrix (space-separated) |
