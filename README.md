@@ -18,7 +18,7 @@ The analyses are organized into three scripts:
 | `02_recurrent_aneuploidies.R` | Analysis of the transcriptional consequences associated with recurrent chromosome-arm gains and losses |
 | `03_figures.R` | Code to reproduce figures from the main analysis and recurrent aneuploidy analyses |
 | `04_immune_analysis.R` | Analysis of the relationship between aneuploidy and tumor cell composition, with code to reproduce the corresponding figures|
-| `03_figures.R` | Analysis of tumor-associated macrophages, with code to reproduce the corresponding figures |
+| `05_TAM_analysis.R` | Analysis of tumor-associated macrophages, with code to reproduce the corresponding figures |
 ---
 
 ## Data Availability
