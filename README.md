@@ -27,6 +27,4 @@ Gene expression data are publicly available (see paper for accession numbers and
 Copy number profiles were derived using the **ASCETS** algorithm.  
 TCGA aneuploidy scores and arm-level CNA calls are from [Taylor et al. 2018, *Cancer Cell*](https://doi.org/10.1016/j.ccell.2018.03.007).
 
-The **sample file map** (`sampleFilesMap`) referenced throughout is a CSV with one row per sample, containing paths to the relevant expression and CNA files. Its columns are described in the code comments.
-
 ---
