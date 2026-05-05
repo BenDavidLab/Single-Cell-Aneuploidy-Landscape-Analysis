@@ -2,7 +2,7 @@
 
 This repository contains the R code supporting the analyses in:
 
-> **[Paper Title]** — *[Authors]* 
+> **[Pan-cancer analysis of single-cell RNA sequencing data from 304 human tumors sheds light on the ‘aneuploidy paradox’]** — *[Guy Wolf-Dankovich, Tomer Mashiah, Ron Saad, Einav Somech, Haia Khoury, Itay Tirosh, Uri Ben-David]* 
 
 ---
 
