@@ -14,6 +14,7 @@ The analyses are organized into three scripts:
 
 | File | Contents |
 |------|----------|
+| `00_CNA_calling_and_visualization.py` | Chromosome-arm CNA calling using ASCETS (parallelised across samples), assembly of per-sample enrichment q-value matrices, and copy number profile heatmaps (gene-level and arm-level, stratified by cell type, AS group, or CN subclone) |
 | `01_main_analysis.R` | Core analysis pipeline, including AS calculation, cell-state grouping, differential gene expression, pathway enrichment, ssGSEA meta-analysis, karyotypic heterogeneity analysis, CN subclone identification, cell cycle scoring, QC aggregation, cell-phase analysis |
 | `02_recurrent_aneuploidies.R` | Analysis of the transcriptional consequences associated with recurrent chromosome-arm gains and losses: ssGSEA, meta-analysis, IPTW-controlled DGE, SC vs TCGA correlation |
 | `03_figures.R` | Code to reproduce figures from the main analysis and recurrent aneuploidy analyses |
