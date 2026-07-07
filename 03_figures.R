@@ -770,7 +770,7 @@ plot_suppFig10_subclone_enrichment <- function(summary_df, db = "HALLMARK",
 # negative, or non-significant correlation with TCGA GSEA results.
 #
 # Input: df_count — data.frame with columns Arm, Type (cancer type),
-#        label ("Positive correlation" / "Negative correlation" /
+#        label ("Concordant Direction" / "Discordant Direction" /
 #               "Not significant"), Correlation, P_val
 
 plot_correlation_heatmap <- function(df_count, db = "HALLMARK",
@@ -783,16 +783,16 @@ plot_correlation_heatmap <- function(df_count, db = "HALLMARK",
       arm_side = str_extract(Arm, "[pq]"),
       arm_order = if_else(arm_side == "p", 1, 2),
       label    = factor(label,
-                        levels = c("Positive correlation",
-                                   "Negative correlation",
+                        levels = c("Concordant Direction",
+                                   "Discordant Direction",
                                    "Not significant"))
     ) %>%
     arrange(chr_num, arm_order, Type) %>%
     mutate(Arm = factor(Arm, levels = unique(Arm)))
 
   corr_colors <- c(
-    "Positive correlation" = "darkgreen",
-    "Negative correlation" = "purple4",
+    "Concordant Direction" = "darkgreen",
+    "Discordant Direction" = "purple4",
     "Not significant"      = "#cccccc"
   )
 
@@ -801,7 +801,7 @@ plot_correlation_heatmap <- function(df_count, db = "HALLMARK",
     scale_fill_manual(values = corr_colors) +
     labs(x = "Chromosome Arm",
          y = "Cancer Type",
-         fill = paste0("Correlation by\n", db, "\n(", cnv_type, ")")) +
+         fill = paste0(pathways_titles_list[i], " Pathway\nEnrichment")) +
     graph_theme +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
           axis.line    = element_blank())
