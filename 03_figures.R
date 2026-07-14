@@ -509,6 +509,57 @@ plot_ssgsea_vs_AHS <- function(results_sssgsea, score) {
 }
 
 # ==============================================================================
+# Cancer-Type Specific Meta-Analysis Heatmap
+# ==============================================================================
+# Heatmap displaying pooled effect sizes across individual cancer lineages.
+#
+# Input: sc_per_cancer_df — output of ssgsea_metaAnalysis_perCancer()
+#        pathway_order    — optional character vector dictating the Y-axis order
+
+plot_cancer_type_meta_analysis_heatmap <- function(sc_per_cancer_df, pathway_order = NULL, 
+                                                   q_val_thres = 0.05, plot_limit = 0.2) {
+  
+  sc_per_cancer_df$name <- gsub("HALLMARK_", "", sc_per_cancer_df$Pathway)
+  
+  if (is.null(pathway_order)) {
+    pathway_order <- sc_per_cancer_df %>%
+      group_by(name) %>%
+      summarize(median_effect = median(PooledEffectSize, na.rm = TRUE)) %>%
+      arrange(median_effect) %>%
+      pull(name)
+  }
+  
+  sc_per_cancer_df <- sc_per_cancer_df %>%
+    filter(name %in% pathway_order) %>%
+    mutate(name = factor(name, levels = pathway_order))
+  
+  ggplot(sc_per_cancer_df, aes(x = Cancer_type, y = name, fill = PooledEffectSize)) +
+    geom_tile(color = "white") +
+    scale_fill_gradientn(
+      colours = c("#2066a8", "gray90", "#ae282c"),
+      values  = scales::rescale(c(-plot_limit, 0, plot_limit)),
+      limits  = c(-plot_limit, plot_limit), 
+      oob     = scales::squish, 
+      name    = "Pooled\nEffect Size"
+    ) +
+    geom_tile(
+      data = subset(sc_per_cancer_df, Qvalues < q_val_thres), 
+      color = "black", size = 0.5
+    ) +
+    labs(x = "Cancer Type", y = "HALLMARK Pathways") +
+    graph_theme +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 14),
+      axis.text.y = element_text(size = 14),
+      axis.line   = element_blank(),
+      panel.grid  = element_blank(),
+      axis.ticks  = element_blank(),
+      legend.key.height = unit(0.8, "cm"),
+      legend.key.width  = unit(0.6, "cm")
+    )
+}
+
+# ==============================================================================
 #### Supplementary Figures
 # ==============================================================================
 
@@ -928,4 +979,45 @@ plot_avg_gene_expression <- function(df_long, gene, cnv_type) {
     graph_theme + 
     theme(axis.title = element_text(size = 15), 
           axis.text.y = element_text(size = 13))
+}
+
+
+# ==============================================================================
+# Malignant vs. Non-Malignant Aneuploidy Baseline (Validation)
+# ==============================================================================
+# Violin/boxplot comparing baseline AS between malignant and non-malignant 
+# cells using paired Wilcoxon rank-sum tests.
+#
+# Input: df_long — metadata mapped to long format with 'condition' 
+#                  (Non_Malignant_Mean_AS, Malignant_Mean_AS) and 'value' (AS)
+#        title_label — Label to differentiate parameter stringency
+
+plot_malig_vs_nonmalig_AS <- function(df_long, title_label = "Lenient Parameters") {
+  
+  df_long$condition <- factor(df_long$condition, levels = c("Non_Malignant_Mean_AS", "Malignant_Mean_AS"))
+  
+  ggplot(df_long, aes(x = condition, y = value, fill = condition)) +
+    geom_violin(trim = FALSE, alpha = 0.6) +
+    geom_boxplot(width = 0.1, fill = 'white', outlier.shape = NA) +
+    geom_jitter(alpha = 0.4, size = 1, width = 0.1, height = 0) + 
+    stat_compare_means(
+      method = "wilcox.test",
+      comparisons = list(c('Non_Malignant_Mean_AS', 'Malignant_Mean_AS')),
+      paired = TRUE,
+      label = "p.format",
+      size = 5
+    ) +   
+    labs(x = title_label, y = "Mean AS") +
+    scale_fill_manual(
+      values = c("Non_Malignant_Mean_AS" = "#cccccc", "Malignant_Mean_AS" = "#ff6666"),
+      labels = c("Non-Malignant Cells", "Malignant Cells")
+    ) +  
+    scale_x_discrete(labels = c("Non_Malignant_Mean_AS" = "Non-Malignant\nMean AS", 
+                                "Malignant_Mean_AS" = "Malignant\nMean AS")) +
+    scale_y_continuous(limits = c(0, 18)) +  
+    graph_theme + 
+    theme(axis.title = element_text(size = 15), 
+          axis.text.x = element_text(size = 13), 
+          axis.text.y = element_text(size = 13), 
+          legend.position = "none")
 }
