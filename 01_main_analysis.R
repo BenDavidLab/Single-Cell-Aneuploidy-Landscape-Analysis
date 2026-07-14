@@ -19,6 +19,10 @@
 #  13. AHS-Stratified Meta-Analysis 
 #  14. Subclone-Level Karyotypic Heterogeneity & DGE
 #  15. Subclone Enrichment Summary Table
+#  16. Dosage-Neutral single-cell ssGSEA (Per-cell exclusion)
+#  17. Dosage-Neutral Pseudo-Bulk Expression (Sample-level exclusion)
+#  18. Cancer-Type Specific ssGSEA Meta-Analysis
+#  19. Malignant vs. Non-Malignant Aneuploidy Score Baseline
 #
 # NOTE: This code is provided for transparency. The gene expression data are
 # publicly available; paths should be updated to your local copies.
@@ -1824,4 +1828,248 @@ build_subclone_enrichment_summary <- function(results_base_path,
   })
   
   bind_rows(enrich_list)
+}
+
+# ==============================================================================
+# 16. Dosage-Neutral single-cell ssGSEA (Per-cell exclusion)
+# ==============================================================================
+# Runs ssGSEA (via GSVA) on the normalized expression matrix, but dynamically 
+# masks genes located on altered chromosome arms for each individual cell prior 
+# to pathway scoring.
+#
+# Input:
+#   files_path    — path containing <Study>/<Sample>/norm_count_data_*.csv
+#   cellTypes     — "malignant"
+#   gene_arm_map  — data.frame mapping 'gene_symbol' to 'chr_arm'
+#   cancerType, paper, sample — identifiers
+#   output_path   — where to write ssGsea_all_<DB>_res_excludeAlt.csv
+
+ssGsea_all_set_excludeAlt <- function(files_path, cellTypes, gene_arm_map, 
+                                      sampleFilesMap, sampleIndex, 
+                                      cancerType, paper, sample, 
+                                      output_path, pathway_index = 6L) {
+  
+  norm_counts <- fread(
+    file.path(files_path, paper, sample, paste0("norm_count_data_", cellTypes, ".csv")),
+    data.table = FALSE, header = TRUE
+  ) %>%
+    remove_rownames() %>% column_to_rownames("V1") %>% drop_na()
+  
+  colnames(norm_counts) <- gsub("[.:]", "-", colnames(norm_counts))
+  
+  cna_df <- read.csv(sampleFilesMap[sampleIndex, "Cna_mat"], sep = '\t') %>%
+    remove_rownames() %>% column_to_rownames("sample")
+  
+  colnames(cna_df) <- gsub("^X([0-9])", "\\1", colnames(cna_df))
+  rownames(cna_df) <- gsub("[.:]", "-", rownames(cna_df))
+  
+  common_cells <- intersect(colnames(norm_counts), rownames(cna_df))
+  norm_counts  <- norm_counts[, common_cells, drop = FALSE]
+  cna_df_sub   <- cna_df[common_cells, , drop = FALSE]
+  
+  dir.create(file.path(output_path, paper, sample), recursive = TRUE, showWarnings = FALSE)
+  
+  for (i in pathway_index) {
+    out_file <- file.path(output_path, paper, sample,
+                          paste0("ssGsea_all_", pathways_titles_list[i], "_res_excludeAlt.csv"))
+    if (file.exists(out_file)) next
+    
+    m_t2g <- msigdbr(species = "Homo sapiens",
+                     category    = pathways_categories_list[i],
+                     subcategory = pathways_anontations_list[i]) %>%
+      dplyr::select(gs_name, gene_symbol)
+    gene_sets_groups <- split(m_t2g$gene_symbol, m_t2g$gs_name)
+    
+    all_res_list <- list()
+    
+    for (cell in common_cells) {
+      cell_states  <- cna_df_sub[cell, ]
+      altered_arms <- colnames(cell_states)[cell_states == "AMP" | cell_states == "DEL"]
+      
+      genes_to_drop <- gene_arm_map %>% 
+        filter(chr_arm %in% altered_arms) %>% 
+        pull(gene_symbol)
+      
+      expr_sub <- norm_counts[, cell, drop = FALSE]
+      expr_sub <- expr_sub[!(rownames(expr_sub) %in% genes_to_drop), , drop = FALSE]
+      
+      expr_sub_mat <- Matrix(as.matrix(expr_sub), sparse = TRUE)
+      res_sub      <- GSVA::gsva(expr_sub_mat, gene_sets_groups, verbose = FALSE, method = 'ssgsea')
+      
+      all_res_list[[cell]] <- res_sub
+    }
+    
+    if (length(all_res_list) > 0) {
+      res_combined <- do.call(cbind, all_res_list)
+      res_combined <- as.data.frame(t(res_combined))
+      data.table::fwrite(res_combined, out_file, row.names = TRUE)
+    }
+  }
+}
+
+# ==============================================================================
+# 17. Dosage-Neutral Pseudo-Bulk Expression (Sample-level exclusion)
+# ==============================================================================
+# Computes the per-sample mean normalized expression, masking genes that reside 
+# on chromosome arms altered in >= 70% of the sample's malignant cells.
+#
+# Input:  sampleIndex, sample, paper, outputPrefix, sampleFilesMap, gene_arm_map
+# Output: mean_norm_counts_without_center_data_excludeAlt0.7.csv per sample
+
+createMeanNormWithoutCenterCountPerSample_excludeAlt <- function(
+    sampleIndex, sample, paper, outputPrefix, sampleFilesMap, gene_arm_map, threshold = 0.7
+) {
+  dir.create(file.path(outputPrefix, paper, sample), recursive = TRUE, showWarnings = FALSE)
+  path <- file.path(outputPrefix, paper, sample)
+  
+  cells_df <- read.csv(sampleFilesMap[sampleIndex, "Cells_path"])
+  sample_cells <- cells_df[cells_df$sample == sample & tolower(cells_df$cell_type) == "malignant", ]$cell_name
+  sample_cells <- as.character(sample_cells)
+  
+  norm_counts <- fread(sampleFilesMap[sampleIndex, "Norm_Without_Center_Expression_path"], data.table = FALSE) %>%
+    remove_rownames() %>% column_to_rownames("V1") %>% drop_na()
+  
+  colnames(norm_counts) <- gsub("^X", "", gsub("[.:]", "-", colnames(norm_counts)))
+  
+  cna_df <- read.csv(sampleFilesMap[sampleIndex, "Cna_mat"], sep = '\t') %>%
+    remove_rownames() %>% column_to_rownames("sample")
+  
+  cna_df <- cna_df[rownames(cna_df) %in% sample_cells, ]
+  colnames(cna_df) <- gsub("^X([0-9])", "\\1", colnames(cna_df))
+  rownames(cna_df) <- gsub("[.:]", "-", rownames(cna_df))
+  
+  common_cells <- intersect(colnames(norm_counts), rownames(cna_df))
+  norm_counts  <- norm_counts[, common_cells, drop = FALSE]
+  cna_df_sub   <- cna_df[common_cells, , drop = FALSE]
+  
+  arm_stats <- apply(cna_df_sub, 2, function(x) mean(x == "AMP" | x == "DEL"))
+  sample_altered_arms <- names(arm_stats[arm_stats >= threshold])
+  
+  genes_to_drop_sample <- gene_arm_map %>% 
+    filter(chr_arm %in% sample_altered_arms) %>% 
+    pull(gene_symbol)
+  
+  filtered_exp <- norm_counts[!(rownames(norm_counts) %in% genes_to_drop_sample), ]
+  mean_expr    <- data.frame(rowMeans(filtered_exp))
+  colnames(mean_expr) <- sample
+  
+  write.csv(mean_expr, file.path(path, paste0("mean_norm_counts_without_center_data_excludeAlt", threshold, ".csv")))
+}
+
+# ==============================================================================
+# 18. Cancer-Type Specific ssGSEA Meta-Analysis
+# ==============================================================================
+# Aggregates per-sample ssGSEA t-test results, grouped by cancer lineage.
+# Applies a strict inclusion threshold of at least 5 independent tumors per type.
+#
+# Input:  output_path (containing t-test results), metadata
+# Output: ssgsea_meta_analysis_tTest_HALLMARKresults_PerCancer.csv
+
+ssgsea_metaAnalysis_perCancer <- function(output_path, metadata, min_samples = 5,
+                                          result_file = file.path(output_path, "ssgsea_meta_analysis_tTest_HALLMARKresults_PerCancer.csv")) {
+  
+  files <- list.files(output_path, pattern = "ssgsea_HALLMARK_tTestRes.csv", full.names = TRUE, recursive = TRUE)
+  combined_data <- bind_rows(lapply(files, read.csv), .id = "id") %>%
+    mutate(sampleID = gsub("[. -]", "_", sampleID))
+  
+  metadata_clean <- metadata %>%
+    mutate(name = gsub("[. -]", "_", paste(Paper, Sample, sep = "_")))
+  
+  combined_data_updated <- combined_data %>%
+    left_join(metadata_clean %>% dplyr::select(name, Cancer_type, Mean_AS), by = c("sampleID" = "name"))
+  
+  meta_data <- combined_data_updated %>%
+    filter(!is.na(Cancer_type)) %>%
+    group_by(Cancer_type, pathway) %>%
+    summarise(
+      EffectSize  = list(effect_size),
+      Qvalues     = list(qvalues),
+      SE          = list(stderr),
+      SampleIDs   = list(sampleID),
+      Num_Samples = n(),
+      .groups     = "drop"
+    ) %>%
+    filter(Num_Samples >= min_samples)
+  
+  summary_results_list <- list()
+  
+  for (i in seq_len(nrow(meta_data))) {
+    es  <- unlist(meta_data$EffectSize[i])
+    ses <- unlist(meta_data$SE[i])
+    
+    res <- tryCatch({
+      rma(yi = es, sei = ses, method = "REML")
+    }, error = function(e) { return(NULL) })
+    
+    if (!is.null(res)) {
+      summary_results_list[[i]] <- data.frame(
+        Cancer_type      = meta_data$Cancer_type[i],
+        Pathway          = meta_data$pathway[i],
+        Num_Samples      = meta_data$Num_Samples[i],
+        PooledEffectSize = as.numeric(res$b),
+        CI_Lower         = res$ci.lb,
+        CI_Upper         = res$ci.ub,
+        PValue           = res$pval
+      )
+    }
+  }
+  
+  summary_results <- bind_rows(summary_results_list) %>%
+    group_by(Cancer_type) %>%
+    mutate(Qvalues = p.adjust(PValue, method = "BH")) %>%
+    ungroup()  
+  
+  write.csv(summary_results, result_file, row.names = FALSE)
+  invisible(summary_results)
+}
+
+# ==============================================================================
+# 19. Malignant vs. Non-Malignant Aneuploidy Score Baseline
+# ==============================================================================
+# Computes the mean AS for malignant vs non-malignant compartments using specified 
+# CNA files. (Used to validate robust ASCETS parameters).
+#
+# Input:  sampleFilesMap, outputPrefix, filename_suffix 
+# Output: malignant_nonMalig_meanAS_metadata_<suffix>.csv
+
+calculate_malig_vs_nonmalig_AS <- function(sampleFilesMap, outputPrefix, filename_suffix = "") {
+  df <- data.frame()
+  
+  for (sampleIndex in seq_len(nrow(sampleFilesMap))) {
+    sample <- sampleFilesMap[sampleIndex, "Sample"]
+    paper  <- sampleFilesMap[sampleIndex, "Study"]
+    
+    cells_df <- read.csv(sampleFilesMap[sampleIndex, "Cells_path"]) %>%
+      mutate(cell_name = gsub("[.:]", "-", cell_name))
+    
+    cna_df <- read.csv(sampleFilesMap[sampleIndex, "Cna_mat"], sep = '\t') %>%
+      remove_rownames() %>% column_to_rownames("sample") %>%
+      replace(. == "DEL", 1) %>% replace(. == "AMP", 1) %>% 
+      replace(. == "NEUTRAL", 0) %>% replace(. == "NC", 0)
+    
+    rownames(cna_df) <- gsub("^X", "", gsub("[.:]", "-", rownames(cna_df)))
+    
+    cna_df$AS <- apply(cna_df[, !colnames(cna_df) %in% c("Xp", "Xq", "Yp", "Yq")], 
+                       MARGIN = 1, FUN = function(x) sum(as.numeric(x)))
+    
+    malig_cells <- cells_df %>% filter(sample == !!sample & tolower(cell_type) == "malignant") %>% pull(cell_name)
+    non_malig_cells <- cells_df %>% filter(sample == !!sample & tolower(cell_type) != "malignant") %>% pull(cell_name)
+    
+    malig_cna     <- cna_df[rownames(cna_df) %in% malig_cells, ]
+    non_malig_cna <- cna_df[rownames(cna_df) %in% non_malig_cells, ]
+    
+    sample_df <- data.frame(
+      Paper                 = paper,
+      Sample                = sample,
+      Cancer_type           = sampleFilesMap[sampleIndex, "Cancer_type"],
+      Malignant_Mean_AS     = round(mean(malig_cna$AS, na.rm = TRUE), 4),
+      Non_Malignant_Mean_AS = round(mean(non_malig_cna$AS, na.rm = TRUE), 4),
+      num_cells_total       = nrow(cna_df)
+    )
+    
+    df <- bind_rows(df, sample_df)
+  }
+  
+  write.csv(df, file.path(outputPrefix, paste0("malignant_nonMalig_meanAS_metadata", filename_suffix, ".csv")), row.names = FALSE)
+  invisible(df)
 }
